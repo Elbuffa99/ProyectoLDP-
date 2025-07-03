@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Restaurante - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .dropdown {
+      position: absolute; top: 100%; right: 0;
+      background: #fff; border-radius: 8px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+      display: none; z-index: 10;
+    }
+    .dropdown.show { display: block; }
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex; justify-content: center; align-items: center;
+      z-index: 50;
+    }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="bg-white shadow p-4 flex justify-between items-center">
+  <div class="text-orange-500 font-bold text-xl">Restaurante</div>
+
+  <div class="flex space-x-4">
+    <a href="/" class="text-orange-500 font-bold">Dashboard</a>
+    <a href="/gestionreservas" class="hover:text-orange-500">Reservas</a>
+    <a href="/gestionclientes" class="hover:text-orange-500">Clientes</a>
+    <a href="/GestionMesas" id="linkMesas" class="hover:text-orange-500">Mesas</a>
+    <a href="/gestionhorarios" id="linkHoras" class="hover:text-orange-500">Horas</a>
+  </div>
+
+  <div id="userInfoDropdown" class="relative cursor-pointer flex items-center">
+    <span id="loggedInUsername" class="text-gray-700">Cargando...</span>
+    <img src="https://placehold.co/32x32/cccccc/333333?text=U" class="ml-2 rounded-full w-8 h-8"/>
+    <div id="userDropdownContent" class="dropdown absolute right-0 mt-2 py-2 bg-white shadow rounded hidden">
+      <a href="#" id="logoutLink" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cerrar sesión</a>
+    </div>
+  </div>
+</nav>
+
+<main class="p-6 flex-grow">
+  <h1 class="text-3xl font-bold mb-4 text-center text-gray-800">Central Reservas</h1>
+  <p class="text-lg text-center text-gray-600 mb-6">Gestión de reservas para restaurantes</p>
+  <p class="text-md text-center text-gray-600 mb-2">
+    Tu rol actual es: <span id="loggedInRole" class="font-semibold">Cargando...</span>
+  </p>
+
+  <!-- Card de Reservas de Hoy -->
+<div class="card bg-white shadow-md rounded-lg p-6 mt-8 mx-auto max-w-xl">
+  <h2 class="text-xl font-bold mb-4 text-gray-800">Reservas de Hoy</h2>
+  <div id="resumenReservasHoy" class="text-gray-700 mb-4">Cargando reservas...</div>
+  <div class="flex justify-between items-center">
+    <a href="/gestionreservas" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+      Añadir Reserva
+    </a>
+    <button id="verReservasBtn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded">
+      Ver Reservas
+    </button>
+  </div>
+</div>
+
+</main>
+
+<!-- Modal de Reservas -->
+<div id="modalReservas" class="modal-overlay hidden">
+  <div class="modal-content">
+    <h2 class="text-xl font-bold mb-4 text-center text-gray-800">Reservas de Hoy</h2>
+    <div id="modalReservasBody" class="text-gray-700"></div>
+    <div class="text-center mt-4">
+      <button id="cerrarModalBtn" class="mt-2 bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded">
+        Cerrar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Script funcionalidad navbar + dashboard -->
+<script>
+  const API_URL = 'http://localhost:8080/api/reservas/hoy';
+  const resumen = document.getElementById('resumenReservasHoy');
+  const modal = document.getElementById('modalReservas');
+  const modalBody = document.getElementById('modalReservasBody');
+  const verReservasBtn = document.getElementById('verReservasBtn');
+  const cerrarModalBtn = document.getElementById('cerrarModalBtn');
+  let reservasHoy = [];
+
+  function loadUserInfoAndProtectRoute() {
+    const username = localStorage.getItem('username');
+    const role = localStorage.getItem('role');
+
+    if (!username || !role) {
+      window.location.href = '/login';
+      return;
+    }
+
+    const usernameSpan = document.getElementById('loggedInUsername');
+    const roleSpan = document.getElementById('loggedInRole');
+
+    if (usernameSpan) usernameSpan.textContent = username;
+    if (roleSpan) roleSpan.textContent = role;
+
+    if (role !== 'admin') {
+      const mesas = document.getElementById('linkMesas');
+      const horas = document.getElementById('linkHoras');
+      if (mesas) mesas.style.display = 'none';
+      if (horas) horas.style.display = 'none';
+    }
+  }
+
+  function setupLogout() {
+    const logoutLink = document.getElementById('logoutLink');
+    if (logoutLink) {
+      logoutLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.clear();
+        window.location.href = '/logout';
+      });
+    }
+  }
+
+  function setupDropdown() {
+    const trigger = document.getElementById('userInfoDropdown');
+    const dropdown = document.getElementById('userDropdownContent');
+
+    if (trigger && dropdown) {
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('show');
+      });
+
+      window.addEventListener('click', (e) => {
+        if (!trigger.contains(e.target)) {
+          dropdown.classList.remove('show');
+        }
+      });
+    }
+  }
+
+  async function cargarReservasHoy() {
+    try {
+      const res = await fetch(API_URL);
+      if (!res.ok) throw new Error('Error al obtener reservas');
+      reservasHoy = await res.json();
+
+      if (reservasHoy.length === 0) {
+        resumen.textContent = 'No hay reservas registradas para hoy.';
+      } else {
+        resumen.innerHTML = `
+          <p>Total de reservas: <strong>${reservasHoy.length}</strong></p>
+          <div class="space-y-2">
+            ${reservasHoy.map(r => `
+              <div class="border border-gray-200 rounded-lg p-3 shadow-sm bg-gray-50">
+                <div class="font-semibold text-gray-800">${r.cliente.nombre}</div>
+                <div class="text-sm text-gray-600">Mesa ${r.mesa.numeroMesa} | Horario: ${r.horario.hora_inicio?.substring(0,5)} - ${r.horario.hora_fin?.substring(0,5)}</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+    } catch (err) {
+      console.error(err);
+      resumen.textContent = 'Error al cargar las reservas.';
+    }
+  }
+
+  verReservasBtn.addEventListener('click', () => {
+    modalBody.innerHTML = reservasHoy.length === 0
+      ? '<p class="text-gray-600">No hay reservas hoy.</p>'
+      : reservasHoy.map(r => `
+        <div class="mb-3 border border-gray-200 rounded-md p-3 bg-white shadow">
+          <p class="text-gray-800 font-bold">${r.cliente.nombre}</p>
+          <p class="text-sm text-gray-600">Mesa: ${r.mesa.numeroMesa}</p>
+          <p class="text-sm text-gray-600">Horario: ${r.horario.hora_inicio?.substring(0,5)} - ${r.horario.hora_fin?.substring(0,5)}</p>
+        </div>
+      `).join('');
+    modal.classList.remove('hidden');
+  });
+
+  cerrarModalBtn.addEventListener('click', () => {
+    modal.classList.add('hidden');
+  });
+
+  window.onload = () => {
+    loadUserInfoAndProtectRoute();
+    setupLogout();
+    setupDropdown();
+    cargarReservasHoy();
+  };
+</script>
+</body>
+</html>

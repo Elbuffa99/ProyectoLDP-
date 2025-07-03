@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestión de Horarios</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: #fff;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      overflow: hidden;
+      min-width: 120px;
+      display: none;
+      z-index: 10;
+    }
+
+    .dropdown.show {
+      display: block;
+    }
+
+    .dropdown a {
+      display: block;
+      padding: 10px 15px;
+      text-align: left;
+      color: #333;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .dropdown a:hover {
+      background-color: #f0f2f5;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+  <!-- Navbar -->
+  <nav class="bg-white shadow-md p-4 flex justify-between items-center">
+    <div class="text-orange-500 font-bold text-xl">Restaurante</div>
+    <div class="flex space-x-4">
+      <a href="/" class="hover:text-orange-500">Dashboard</a>
+      <a href="/gestionreservas" class="hover:text-orange-500">Reservas</a>
+      <a href="/gestionclientes" class="hover:text-orange-500">Clientes</a>
+      <a href="/GestionMesas" id="linkMesas" class="hover:text-orange-500">Mesas</a>
+      <a href="/gestionhorarios" id="linkHoras" class="text-orange-500 font-bold">Horas</a>
+    </div>
+    <div class="relative flex items-center cursor-pointer" id="userInfoDropdown">
+      <span id="loggedInUsername" class="text-gray-700">Cargando...</span>
+      <img src="https://placehold.co/32x32/cccccc/333333?text=U" class="ml-2 rounded-full w-8 h-8" />
+      <div class="dropdown" id="userDropdownContent">
+        <a href="#" id="logoutLink">Cerrar Sesión</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Contenido -->
+  <div class="container mx-auto p-4">
+    <h1 class="text-2xl font-bold mb-4">Gestión de Horarios</h1>
+    <button id="btnAgregar" class="bg-orange-500 text-white px-4 py-2 rounded mb-4">Nuevo Horario</button>
+    <table class="min-w-full bg-white rounded shadow">
+      <thead>
+        <tr class="bg-gray-200 text-gray-700">
+          <th class="px-4 py-2">ID</th>
+          <th class="px-4 py-2">Hora Inicio</th>
+          <th class="px-4 py-2">Hora Fin</th>
+          <th class="px-4 py-2">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tablaHorarios"></tbody>
+    </table>
+  </div>
+
+  <!-- Modal -->
+  <div id="modalHorario" class="fixed inset-0 bg-black bg-opacity-40 hidden justify-center items-center">
+    <div class="bg-white p-6 rounded shadow-md w-96 relative">
+      <h2 id="tituloModal" class="text-lg font-semibold mb-4">Nuevo Horario</h2>
+      <form id="formHorario" class="space-y-3">
+        <input type="hidden" id="horarioId" />
+        <label class="block">
+          Hora Inicio:
+          <input type="time" id="horaInicio" required class="w-full border rounded p-2 mt-1" />
+        </label>
+        <label class="block">
+          Hora Fin:
+          <input type="time" id="horaFin" required class="w-full border rounded p-2 mt-1" />
+        </label>
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" id="btnCancelar" class="bg-gray-400 text-white px-4 py-2 rounded">Cancelar</button>
+          <button type="submit" class="bg-orange-500 text-white px-4 py-2 rounded">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:8080/api/horarios';
+    const tabla = document.getElementById('tablaHorarios');
+    const modal = document.getElementById('modalHorario');
+    const form = document.getElementById('formHorario');
+    const btnAgregar = document.getElementById('btnAgregar');
+    const btnCancelar = document.getElementById('btnCancelar');
+
+    let horarios = [];
+
+    function loadUserInfoAndProtectRoute() {
+      const username = localStorage.getItem('username');
+      const role = localStorage.getItem('role');
+      if (!username || !role) {
+        window.location.href = '/login';
+      } else {
+        document.getElementById('loggedInUsername').textContent = username;
+        if (role !== 'admin') {
+          const mesas = document.getElementById('linkMesas');
+          const horas = document.getElementById('linkHoras');
+          if (mesas) mesas.style.display = 'none';
+          if (horas) horas.style.display = 'none';
+        }
+      }
+    }
+
+    function setupDropdown() {
+      const trigger = document.getElementById("userInfoDropdown");
+      const dropdown = document.getElementById("userDropdownContent");
+
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle("show");
+      });
+
+      window.addEventListener("click", (e) => {
+        if (!trigger.contains(e.target)) {
+          dropdown.classList.remove("show");
+        }
+      });
+    }
+
+    function setupLogout() {
+      const logoutLink = document.getElementById("logoutLink");
+      logoutLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        localStorage.clear();
+        window.location.href = "/logout";
+      });
+    }
+
+    const cargarHorarios = async () => {
+      const res = await fetch(API);
+      horarios = await res.json();
+      renderizar();
+    };
+
+    const renderizar = () => {
+      tabla.innerHTML = horarios.map(h => `
+        <tr>
+          <td class="border px-4 py-2">${h.id_horario}</td>
+          <td class="border px-4 py-2">${h.hora_inicio?.substring(0,5)}</td>
+          <td class="border px-4 py-2">${h.hora_fin?.substring(0,5)}</td>
+          <td class="border px-4 py-2 space-x-2">
+            <button onclick="editar(${h.id_horario})" class="bg-yellow-500 px-2 py-1 text-white rounded">Editar</button>
+            <button onclick="eliminar(${h.id_horario})" class="bg-red-600 px-2 py-1 text-white rounded">Eliminar</button>
+          </td>
+        </tr>
+      `).join('');
+    };
+
+    const editar = id => {
+      const h = horarios.find(x => x.id_horario === id);
+      if (!h) return;
+      document.getElementById('horarioId').value = h.id_horario;
+      document.getElementById('horaInicio').value = h.hora_inicio;
+      document.getElementById('horaFin').value = h.hora_fin;
+      modal.classList.remove('hidden');
+    };
+
+    const eliminar = async id => {
+      if (confirm('¿Eliminar este horario?')) {
+        await fetch(`${API}/${id}`, { method: 'DELETE' });
+        await cargarHorarios();
+      }
+    };
+
+    form.onsubmit = async e => {
+      e.preventDefault();
+      const id = document.getElementById('horarioId').value;
+      const horaInicio = document.getElementById('horaInicio').value;
+      const horaFin = document.getElementById('horaFin').value;
+
+      if (horaInicio < '10:00' || horaFin > '22:00') {
+        alert('El horario debe estar entre las 10:00 AM y 10:00 PM.');
+        return;
+      }
+
+      if (horaFin <= horaInicio) {
+        alert('La hora de fin debe ser mayor que la hora de inicio.');
+        return;
+      }
+
+      const existe = horarios.some(h => {
+        const hInicio = h.hora_inicio?.substring(0, 5);
+        const hFin = h.hora_fin?.substring(0, 5);
+        return hInicio === horaInicio && hFin === horaFin && h.id_horario != id;
+      });
+
+      if (existe) {
+        alert('Ya existe un horario con ese rango de horas.');
+        return;
+      }
+
+      const data = {
+        hora_inicio: horaInicio,
+        hora_fin: horaFin
+      };
+
+      await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(id ? { ...data, id_horario: parseInt(id) } : data)
+      });
+
+      modal.classList.add('hidden');
+      await cargarHorarios();
+    };
+
+    btnAgregar.onclick = () => {
+      form.reset();
+      document.getElementById('horarioId').value = '';
+      modal.classList.remove('hidden');
+    };
+
+    btnCancelar.onclick = () => modal.classList.add('hidden');
+
+    window.onload = async () => {
+      loadUserInfoAndProtectRoute();
+      setupDropdown();
+      setupLogout();
+      await cargarHorarios();
+    };
+  </script>
+</body>
+</html>

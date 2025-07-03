@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gestión de Mesas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: #fff;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      overflow: hidden;
+      min-width: 120px;
+      display: none;
+      z-index: 10;
+    }
+    .dropdown.show {
+      display: block;
+    }
+    .dropdown a {
+      display: block;
+      padding: 10px 15px;
+      text-align: left;
+      color: #333;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .dropdown a:hover {
+      background-color: #f0f2f5;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+  <!-- Navbar -->
+  <nav class="bg-white shadow p-4 flex justify-between items-center">
+    <div class="text-orange-500 font-bold text-xl">Restaurante</div>
+    <div class="flex space-x-4">
+      <a href="/" class="hover:text-orange-500">Dashboard</a>
+      <a href="/gestionreservas" class="hover:text-orange-500">Reservas</a>
+      <a href="/gestionclientes" class="hover:text-orange-500">Clientes</a>
+      <a href="/GestionMesas" id="linkMesas" class="text-orange-500 font-bold">Mesas</a>
+      <a href="/gestionhorarios" id="linkHoras" class="hover:text-orange-500">Horas</a>
+    </div>
+    <div class="relative flex items-center cursor-pointer" id="userInfoDropdown">
+      <span id="loggedInUsername" class="text-gray-700">Cargando...</span>
+      <img src="https://placehold.co/32x32/cccccc/333333?text=U" class="ml-2 rounded-full w-8 h-8" />
+      <div class="dropdown" id="userDropdownContent">
+        <a href="#" id="logoutLink">Cerrar Sesión</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Contenido principal -->
+  <div class="max-w-6xl mx-auto mt-8 p-6 bg-white shadow rounded-lg">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-bold text-gray-700">Gestión de Mesas</h1>
+      <button id="btnNuevaMesa" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded">Nueva Mesa</button>
+    </div>
+
+    <!-- Tabla de Mesas -->
+    <div class="overflow-x-auto">
+      <table class="min-w-full bg-white rounded shadow">
+        <thead class="bg-gray-200 text-gray-700">
+          <tr>
+            <th class="px-4 py-2">ID</th>
+            <th class="px-4 py-2">Número</th>
+            <th class="px-4 py-2">Capacidad</th>
+            <th class="px-4 py-2">Estado</th>
+            <th class="px-4 py-2">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tablaMesas"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal de Mesa -->
+  <div id="modalMesa" class="fixed inset-0 bg-black bg-opacity-40 hidden justify-center items-center">
+    <div class="bg-white p-6 rounded shadow-md w-96">
+      <h2 class="text-lg font-semibold mb-4">Nueva Mesa</h2>
+      <form id="formMesa" class="space-y-3">
+        <input type="hidden" id="idMesa" />
+        <label class="block">Número de Mesa:
+          <input type="number" id="numeroMesa" required class="w-full border rounded p-2 mt-1" />
+        </label>
+        <label class="block">Capacidad:
+          <input type="number" id="capacidadMesa" required class="w-full border rounded p-2 mt-1" />
+        </label>
+        <label class="block">Estado:
+          <select id="estadoMesa" required class="w-full border rounded p-2 mt-1">
+            <option value="disponible">Disponible</option>
+            <option value="reservada">Reservada</option>
+          </select>
+        </label>
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" id="btnCancelarMesa" class="bg-gray-400 text-white px-4 py-2 rounded">Cancelar</button>
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const API = "http://localhost:8080/api/mesas";
+    const tablaMesas = document.getElementById("tablaMesas");
+    const modal = document.getElementById("modalMesa");
+    const form = document.getElementById("formMesa");
+    const btnNueva = document.getElementById("btnNuevaMesa");
+    const btnCancelar = document.getElementById("btnCancelarMesa");
+    const estado = document.getElementById("estadoMesa");
+    const idMesaInput = document.getElementById("idMesa");
+    const numeroInput = document.getElementById("numeroMesa");
+    const capacidadInput = document.getElementById("capacidadMesa");
+
+    let mesas = [];
+
+    function loadUserInfoAndProtectRoute() {
+      const username = localStorage.getItem("username");
+      const role = localStorage.getItem("role");
+      if (!username || !role) {
+        window.location.href = "/login";
+      } else {
+        document.getElementById("loggedInUsername").textContent = username;
+        if (role !== "admin") {
+          const mesas = document.getElementById("linkMesas");
+          const horas = document.getElementById("linkHoras");
+          if (mesas) mesas.style.display = "none";
+          if (horas) horas.style.display = "none";
+        }
+      }
+    }
+
+    function setupDropdown() {
+      const trigger = document.getElementById("userInfoDropdown");
+      const dropdown = document.getElementById("userDropdownContent");
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle("show");
+      });
+      window.addEventListener("click", (e) => {
+        if (!trigger.contains(e.target)) {
+          dropdown.classList.remove("show");
+        }
+      });
+    }
+
+    function setupLogout() {
+      const logoutLink = document.getElementById("logoutLink");
+      logoutLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        localStorage.clear();
+        window.location.href = "/logout";
+      });
+    }
+
+    const cargarMesas = async () => {
+      const res = await fetch(API);
+      mesas = await res.json();
+      render();
+    };
+
+    const render = () => {
+      tablaMesas.innerHTML = mesas.map((m) => `
+        <tr>
+          <td class="border px-4 py-2">${m.id_mesa}</td>
+          <td class="border px-4 py-2">${m.numeroMesa}</td>
+          <td class="border px-4 py-2">${m.capacidad}</td>
+          <td class="border px-4 py-2">${m.estado}</td>
+          <td class="border px-4 py-2 space-x-2">
+            <button onclick="editar(${m.id_mesa})" class="bg-yellow-500 text-white px-2 py-1 rounded">Editar</button>
+            <button onclick="eliminar(${m.id_mesa})" class="bg-red-600 text-white px-2 py-1 rounded">Eliminar</button>
+          </td>
+        </tr>
+      `).join("");
+    };
+
+    btnNueva.onclick = () => {
+      form.reset();
+      idMesaInput.value = "";
+      modal.classList.remove("hidden");
+    };
+
+    btnCancelar.onclick = () => modal.classList.add("hidden");
+
+    const editar = (id) => {
+      const m = mesas.find((x) => x.id_mesa === id);
+      if (!m) return;
+      idMesaInput.value = m.id_mesa;
+      numeroInput.value = m.numeroMesa;
+      capacidadInput.value = m.capacidad;
+      estado.value = m.estado;
+      modal.classList.remove("hidden");
+    };
+
+    const eliminar = async (id) => {
+      if (confirm("¿Eliminar esta mesa?")) {
+        await fetch(`${API}/${id}`, { method: "DELETE" });
+        await cargarMesas();
+      }
+    };
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const id = idMesaInput.value;
+      const data = {
+        numeroMesa: parseInt(numeroInput.value),
+        capacidad: parseInt(capacidadInput.value),
+        estado: estado.value,
+      };
+      if (id) data.id_mesa = parseInt(id);
+      await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      modal.classList.add("hidden");
+      await cargarMesas();
+    };
+
+    window.onload = async () => {
+      loadUserInfoAndProtectRoute();
+      setupDropdown();
+      setupLogout();
+      await cargarMesas();
+    };
+  </script>
+</body>
+</html>

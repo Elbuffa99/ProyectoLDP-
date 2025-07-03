@@ -1,0 +1,401 @@
+	<!DOCTYPE html>
+	<html xmlns:th="http://www.thymeleaf.org" lang="es">
+	<head>
+	  <meta charset="UTF-8" />
+	  <title>Gestión de Reservas</title>
+	  <script src="https://cdn.tailwindcss.com"></script>
+	  <style>
+	    .dropdown {
+	      display: none;
+	      position: absolute;
+	      top: 100%;
+	      right: 0;
+	      background-color: white;
+	      border: 1px solid #ddd;
+	      border-radius: 0.25rem;
+	      z-index: 10;
+	      min-width: 150px;
+	    }
+	    .dropdown.show {
+	      display: block;
+	    }
+	  </style>
+	</head>
+	<body class="bg-gray-100 font-sans">
+	
+	  <!-- Navbar completo con dropdown -->
+	  <nav class="bg-white shadow p-4 flex justify-between items-center">
+	    <div class="text-orange-500 font-bold text-xl">Restaurante</div>
+	
+	    <div class="flex space-x-4">
+	      <a href="/" class="hover:text-orange-500">Dashboard</a>
+	      <a href="/gestionreservas" class="text-orange-500 font-bold">Reservas</a>
+	      <a href="/gestionclientes" class="hover:text-orange-500">Clientes</a>
+	      <a href="/GestionMesas" id="linkMesas" class="hover:text-orange-500">Mesas</a>
+	      <a href="/gestionhorarios" id="linkHoras" class="hover:text-orange-500">Horas</a>
+	    </div>
+	
+	    <div id="userInfoDropdown" class="relative cursor-pointer flex items-center">
+	      <span id="loggedInUsername" class="text-gray-700">Cargando...</span>
+	      <img src="https://placehold.co/32x32/cccccc/333333?text=U" class="ml-2 rounded-full w-8 h-8"/>
+	      <div id="userDropdownContent" class="dropdown absolute right-0 mt-2 py-2 bg-white shadow rounded hidden">
+	        <a href="#" id="logoutLink" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cerrar sesión</a>
+	      </div>
+	    </div>
+	  </nav>
+	
+	  <div class="container mx-auto p-4">
+	    <h1 class="text-2xl font-bold mb-4">Gestión de Reservas</h1>
+	
+	    <!-- Filtro por estado -->
+	    <div class="mb-4">
+	      <label for="filterEstado" class="mr-2 font-medium">Estado:</label>
+	      <select id="filterEstado" class="p-2 border rounded">
+	        <option value="todos">Todos</option>
+	        <option value="activa">Activa</option>
+	        <option value="cancelada">Cancelada</option>
+	        <option value="completada">Completada</option>
+	      </select>
+	    </div>
+	
+	    <!-- Botón para añadir reserva -->
+	    <button id="btnAgregar" class="bg-blue-500 text-white px-4 py-2 rounded mb-4">Nueva Reserva</button>
+	
+	    <!-- Tabla -->
+	    <table class="min-w-full bg-white rounded shadow">
+	      <thead>
+	        <tr class="bg-gray-200 text-gray-700">
+	          <th class="px-4 py-2">ID</th>
+	          <th class="px-4 py-2">Cliente</th>
+	          <th class="px-4 py-2">Mesa</th>
+	          <th class="px-4 py-2">Horario</th>
+	          <th class="px-4 py-2">Fecha</th>
+	          <th class="px-4 py-2">Estado</th>
+	          <th class="px-4 py-2">Estado Mesa</th>
+	          <th class="px-4 py-2">Acciones</th>
+	        </tr>
+	      </thead>
+	      <tbody id="tablaReservas"></tbody>
+	    </table>
+	  </div>
+	
+	  <!-- Modal -->
+	  <div id="modalReserva" class="fixed inset-0 bg-black bg-opacity-40 hidden justify-center items-center">
+	    <div class="bg-white p-6 rounded shadow-md w-96 relative">
+	      <h2 id="tituloModal" class="text-lg font-semibold mb-4">Nueva Reserva</h2>
+	         <button id="btnReporte" class="bg-green-600 text-white px-4 py-2 rounded mb-4 ml-2">Reporte de Reservas</button>
+	      <form id="formReserva" class="space-y-3">
+	        <input type="hidden" id="reservaId" />
+	
+			
+			<label class="block">Buscar Cliente:
+			  <input type="text" id="clienteFilter" placeholder="Escribe el nombre..." class="w-full border rounded p-2 mt-1" />
+			</label>
+			
+			<label class="block mt-2">Cliente:
+			  <select id="clienteSelect" required class="w-full border rounded p-2 mt-1"></select>
+			</label>
+
+	
+	        <label class="block">Mesa:
+	          <select id="mesaSelect" required class="w-full border rounded p-2 mt-1"></select>
+	        </label>
+	
+	        <label class="block">Horario:
+	          <select id="horarioSelect" required class="w-full border rounded p-2 mt-1"></select>
+	        </label>
+	
+	        <label class="block">Fecha:
+	          <input type="date" id="fechaReserva" required class="w-full border rounded p-2 mt-1" />
+	        </label>
+	
+	        <label class="block">Estado:
+	          <select id="estadoReserva" class="w-full border rounded p-2 mt-1">
+	            <option value="activa">Activa</option>
+	            <option value="cancelada">Cancelada</option>
+	            <option value="completada">Completada</option>
+	          </select>
+	        </label>
+	
+	        <label class="block">Observaciones:
+	          <textarea id="observaciones" class="w-full border rounded p-2 mt-1"></textarea>
+	        </label>
+	
+	        <div class="flex justify-end space-x-2 pt-2">
+	          <button type="button" id="btnCancelar" class="bg-gray-400 text-white px-4 py-2 rounded">Cancelar</button>
+	          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Guardar</button>
+	        </div>
+	      </form>
+	    </div>
+	  </div>
+	
+	  <!-- Script del Navbar -->
+	  <script>
+	    function loadUserInfoAndProtectRoute() {
+	      const username = localStorage.getItem('username');
+	      const role = localStorage.getItem('role');
+	
+	      if (!username || !role) {
+	        window.location.href = '/login';
+	        return;
+	      }
+	
+	      const usernameSpan = document.getElementById('loggedInUsername');
+	      if (usernameSpan) {
+	        usernameSpan.textContent = username;
+	      }
+	
+	      if (role !== 'admin') {
+	        const mesas = document.getElementById('linkMesas');
+	        const horas = document.getElementById('linkHoras');
+	        if (mesas) mesas.style.display = 'none';
+	        if (horas) horas.style.display = 'none';
+	      }
+	    }
+	
+	    function setupLogout() {
+	      const logoutLink = document.getElementById('logoutLink');
+	      const logoutButton = document.getElementById('logoutButton');
+	      const logout = () => {
+	        localStorage.clear();
+	        window.location.href = '/logout';
+	      };
+	
+	      if (logoutLink) logoutLink.addEventListener('click', (e) => { e.preventDefault(); logout(); });
+	      if (logoutButton) logoutButton.addEventListener('click', logout);
+	    }
+	
+	    function setupDropdown() {
+	      const dropdown = document.getElementById('userDropdownContent');
+	      const trigger = document.getElementById('userInfoDropdown');
+	
+	      if (trigger && dropdown) {
+	        trigger.addEventListener('click', (e) => {
+	          e.stopPropagation();
+	          dropdown.classList.toggle('show');
+	        });
+	
+	        window.addEventListener('click', (e) => {
+	          if (!trigger.contains(e.target)) {
+	            dropdown.classList.remove('show');
+	          }
+	        });
+	      }
+	    }
+	  </script>
+	
+	  <!-- Script principal -->
+	  <script>
+
+	    const API_BASE = 'http://localhost:8080/api';
+	    const tabla = document.getElementById('tablaReservas');
+	    const modal = document.getElementById('modalReserva');
+	    const form = document.getElementById('formReserva');
+	    const btnAgregar = document.getElementById('btnAgregar');
+	    const btnCancelar = document.getElementById('btnCancelar');
+	    const clienteSelect = document.getElementById('clienteSelect');
+	    const clienteFilter = document.getElementById('clienteFilter');
+	    let allClientes = [];	
+	    const mesaSelect = document.getElementById('mesaSelect');
+	    const horarioSelect = document.getElementById('horarioSelect');
+	    const estadoFiltro = document.getElementById('filterEstado');
+	    const fechaInput = document.getElementById('fechaReserva');
+	
+	    let reservas = [];
+	
+	    async function cargarCombos() {
+	    	  const [clientes, horarios] = await Promise.all([
+	    	    fetch(`${API_BASE}/clientes`).then(r => r.json()),
+	    	    fetch(`${API_BASE}/horarios`).then(r => r.json())
+	    	  ]);
+
+	    	  allClientes = clientes; // guarda para filtrar
+
+	    	  renderClientes(allClientes);
+
+	    	  horarioSelect.innerHTML = horarios.map(h => {
+	    	    const inicio = h.hora_inicio?.substring(0, 5);
+	    	    const fin = h.hora_fin?.substring(0, 5);
+	    	    return `<option value="${h.id_horario}">${inicio} - ${fin}</option>`;
+	    	  }).join('');
+	    	}
+
+	    function renderClientes(lista) {
+	    	  clienteSelect.innerHTML = lista.map(c => `<option value="${c.id_cliente}">${c.nombre}</option>`).join('');
+	    	}
+	    clienteFilter.oninput = () => {
+	    	  const texto = clienteFilter.value.toLowerCase();
+	    	  const filtrados = allClientes.filter(c => c.nombre.toLowerCase().includes(texto));
+	    	  renderClientes(filtrados);
+	    	};
+
+	
+	    fechaInput.onchange = actualizarComboMesas;
+	    horarioSelect.onchange = actualizarComboMesas;
+	
+	    async function cargarReservas() {
+	      const res = await fetch(`${API_BASE}/reservas`);
+	      reservas = await res.json();
+	      renderizar();
+	    }
+	
+	    function renderizar() {
+	      const estado = estadoFiltro.value;
+	      tabla.innerHTML = reservas
+	        .filter(r => estado === 'todos' || r.estado === estado)
+	        .map(r => `
+	          <tr>
+	            <td class="border px-4 py-2">${r.id_reserva}</td>
+	            <td class="border px-4 py-2">${r.cliente?.nombre || '-'}</td>
+	            <td class="border px-4 py-2">Mesa ${r.mesa?.numeroMesa}</td>
+	            <td class="border px-4 py-2">${r.horario?.hora_inicio?.substring(0,5)}-${r.horario?.hora_fin?.substring(0,5)}</td>
+	            <td class="border px-4 py-2">${r.fecha}</td>
+	            <td class="border px-4 py-2">${r.estado}</td>
+	            <td class="border px-4 py-2">
+	              <span class="px-2 py-1 rounded text-white text-sm ${r.mesa?.estado === 'reservada' ? 'bg-red-500' : 'bg-green-500'}">
+	                ${r.mesa?.estado || '-'}
+	              </span>
+	            </td>
+	            <td class="border px-4 py-2 space-x-2">
+	              <button onclick="editar(${r.id_reserva})" class="bg-yellow-500 px-2 py-1 text-white rounded">Editar</button>
+	              <button onclick="eliminar(${r.id_reserva})" class="bg-red-600 px-2 py-1 text-white rounded">Eliminar</button>
+	            </td>
+	          </tr>
+	        `).join('');
+	    }
+	    async function actualizarComboMesas() {
+	    	  const fechaSeleccionada = fechaInput.value;
+	    	  const idHorario = parseInt(horarioSelect.value);
+	    	  if (!fechaSeleccionada || !idHorario) return;
+
+	    	  const todasLasMesas = await fetch(`${API_BASE}/mesas`).then(r => r.json());
+	    	  const ocupadas = await fetch(`${API_BASE}/reservas/ocupadas?fecha=${fechaSeleccionada}&idHorario=${idHorario}`).then(r => r.json());
+	    	  const idsOcupadas = ocupadas.map(m => m.id_mesa);
+
+	    	  const idReservaEditando = document.getElementById("reservaId").value;
+	    	  let mesaActualId = null;
+
+	    	  if (idReservaEditando) {
+	    	    const reservaActual = reservas.find(r => r.id_reserva == idReservaEditando);
+	    	    mesaActualId = reservaActual?.mesa?.id_mesa;
+	    	    if (mesaActualId) {
+	    	      const index = idsOcupadas.indexOf(mesaActualId);
+	    	      if (index !== -1) idsOcupadas.splice(index, 1);
+	    	    }
+	    	  }
+
+	    	  const disponibles = todasLasMesas.filter(m => !idsOcupadas.includes(m.id_mesa));
+
+	    	  if (disponibles.length === 0) {
+	    	    mesaSelect.innerHTML = '<option disabled>No hay mesas disponibles</option>';
+	    	  } else {
+	    	    mesaSelect.innerHTML = disponibles.map(m => `<option value="${m.id_mesa}">Mesa ${m.numeroMesa}</option>`).join('');
+	    	  }
+
+	    	  document.querySelector('#formReserva button[type="submit"]').disabled = disponibles.length === 0;
+	    	}
+	    
+	    async function cargarReservas() {
+	    	  const res = await fetch(`${API_BASE}/reservas`);
+	    	  reservas = await res.json();
+
+	    	  const hoy = new Date().toISOString().split("T")[0];
+	    	  const actualizaciones = [];
+
+	    	  for (const r of reservas) {
+	    	    if (r.fecha < hoy && r.estado === 'activa') {
+	    	      const actualizada = {
+	    	        ...r,
+	    	        cliente: { id_cliente: r.cliente.id_cliente },
+	    	        mesa: { id_mesa: r.mesa.id_mesa },
+	    	        horario: { id_horario: r.horario.id_horario },
+	    	        estado: 'completada'
+	    	      };
+
+	    	      actualizaciones.push(fetch(`${API_BASE}/reservas`, {
+	    	        method: 'POST',
+	    	        headers: { 'Content-Type': 'application/json' },
+	    	        body: JSON.stringify(actualizada)
+	    	      }));
+	    	    }
+	    	  }
+
+	    	  if (actualizaciones.length > 0) {
+	    	    await Promise.all(actualizaciones);
+	    	    const res2 = await fetch(`${API_BASE}/reservas`);
+	    	    reservas = await res2.json();
+	    	  }
+
+	    	  renderizar();
+	    	}
+
+	    async function editar(id) {
+	    	  const r = reservas.find(x => x.id_reserva === id);
+	    	  if (!r) return;
+
+	    	  document.getElementById('reservaId').value = r.id_reserva;
+	    	  clienteSelect.value = r.cliente.id_cliente;
+	    	  horarioSelect.value = r.horario.id_horario;
+	    	  fechaInput.value = r.fecha;
+
+	    	  await actualizarComboMesas(); 
+
+	    	  mesaSelect.value = r.mesa.id_mesa;
+	    	  document.getElementById('estadoReserva').value = r.estado;
+	    	  document.getElementById('observaciones').value = r.observaciones || '';
+	    	  modal.classList.remove('hidden');
+	    	}
+
+	
+	    async function eliminar(id) {
+	      if (confirm('¿Eliminar reserva?')) {
+	        await fetch(`${API_BASE}/reservas/${id}`, { method: 'DELETE' });
+	        await cargarReservas();
+	      }
+	    }
+	
+	    form.onsubmit = async (e) => {
+	      e.preventDefault();
+	      const id = document.getElementById('reservaId').value;
+	      const data = {
+	        cliente: { id_cliente: parseInt(clienteSelect.value) },
+	        mesa: { id_mesa: parseInt(mesaSelect.value) },
+	        horario: { id_horario: parseInt(horarioSelect.value) },
+	        fecha: fechaInput.value,
+	        estado: document.getElementById('estadoReserva').value,
+	        observaciones: document.getElementById('observaciones').value
+	      };
+	
+	      await fetch(`${API_BASE}/reservas`, {
+	        method: 'POST',
+	        headers: { 'Content-Type': 'application/json' },
+	        body: JSON.stringify(id ? { ...data, id_reserva: parseInt(id) } : data)
+	      });
+	
+	      modal.classList.add('hidden');
+	      await cargarReservas();
+	    };
+	
+	    btnAgregar.onclick = () => {
+	      form.reset();
+	      document.getElementById('reservaId').value = '';
+	      modal.classList.remove('hidden');
+	    };
+	    const btnReporte = document.getElementById('btnReporte');
+
+	    btnReporte.onclick = () => {
+	      window.open(`${API_BASE}/reportes/reservas`, '_blank');
+	    };
+	    btnCancelar.onclick = () => modal.classList.add('hidden');
+	    estadoFiltro.onchange = renderizar;
+	
+	    window.onload = async () => {
+	      loadUserInfoAndProtectRoute();
+	      setupLogout();
+	      setupDropdown();
+	      await cargarCombos();
+	      await cargarReservas();
+	    };
+	  </script>
+	</body>
+	</html>

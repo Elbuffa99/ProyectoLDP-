@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestión de Clientes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: #fff;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      overflow: hidden;
+      min-width: 120px;
+      display: none;
+      z-index: 10;
+    }
+
+    .dropdown.show {
+      display: block;
+    }
+
+    .dropdown a {
+      display: block;
+      padding: 10px 15px;
+      text-align: left;
+      color: #333;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .dropdown a:hover {
+      background-color: #f0f2f5;
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+
+  <!-- Navbar -->
+  <nav class="bg-white shadow p-4 flex justify-between items-center">
+    <div class="text-orange-500 font-bold text-xl">Restaurante</div>
+
+    <div class="flex space-x-4">
+      <a href="/" class="hover:text-orange-500">Dashboard</a>
+      <a href="/gestionreservas" class="hover:text-orange-500">Reservas</a>
+      <a href="/gestionclientes" class="text-orange-500 font-bold">Clientes</a>
+      <a href="/GestionMesas" id="linkMesas" class="hover:text-orange-500">Mesas</a>
+      <a href="/gestionhorarios" id="linkHoras" class="hover:text-orange-500">Horas</a>
+    </div>
+
+    <div class="relative flex items-center cursor-pointer" id="userInfoDropdown">
+      <span id="loggedInUsername" class="text-gray-700">Cargando...</span>
+      <img src="https://placehold.co/32x32/cccccc/333333?text=U" alt="User Avatar" class="ml-2 rounded-full w-8 h-8">
+      <div class="dropdown" id="userDropdownContent">
+        <a href="#" id="logoutLink">Cerrar Sesión</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mx-auto p-4">
+    <h1 class="text-2xl font-bold text-center mb-6">Gestión de Clientes</h1>
+
+    <div class="mb-4 flex justify-between items-center">
+      <input type="text" id="filterNombre" placeholder="Buscar por nombre..." class="border p-2 rounded w-1/3">
+      <button id="addClienteBtn" class="bg-orange-500 text-white px-4 py-2 rounded">Añadir Cliente</button>
+    </div>
+
+    <table class="min-w-full bg-white rounded shadow">
+      <thead>
+        <tr>
+          <th class="py-2 px-4 border-b">ID</th>
+          <th class="py-2 px-4 border-b">Nombre</th>
+          <th class="py-2 px-4 border-b">Email</th>
+          <th class="py-2 px-4 border-b">Teléfono</th>
+          <th class="py-2 px-4 border-b">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="clientesTableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Modal -->
+  <div id="formModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded shadow w-96">
+      <h2 class="text-xl font-semibold mb-4" id="formTitle">Nuevo Cliente</h2>
+      <form id="clienteForm">
+        <input type="hidden" id="clienteId">
+        <div class="mb-4">
+          <label for="nombre" class="block mb-1">Nombre:</label>
+          <input type="text" id="nombre" required class="w-full border px-3 py-2 rounded">
+        </div>
+        <div class="mb-4">
+          <label for="email" class="block mb-1">Email:</label>
+          <input type="email" id="email" class="w-full border px-3 py-2 rounded">
+        </div>
+        <div class="mb-4">
+          <label for="telefono" class="block mb-1">Teléfono:</label>
+          <input type="tel" id="telefono" class="w-full border px-3 py-2 rounded">
+        </div>
+        <div class="flex justify-end space-x-2">
+          <button type="submit" id="saveButton" class="bg-blue-600 text-white px-4 py-2 rounded">Guardar</button>
+          <button type="button" id="cancelEdit" class="bg-gray-300 px-4 py-2 rounded">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:8080/api/clientes';
+    const clienteForm = document.getElementById('clienteForm');
+    const clientesTableBody = document.getElementById('clientesTableBody');
+    const clienteIdInput = document.getElementById('clienteId');
+    const nombreInput = document.getElementById('nombre');
+    const emailInput = document.getElementById('email');
+    const telefonoInput = document.getElementById('telefono');
+    const formModal = document.getElementById('formModal');
+    const formTitle = document.getElementById('formTitle');
+    const cancelEdit = document.getElementById('cancelEdit');
+    const filterNombreInput = document.getElementById('filterNombre');
+    const addClienteBtn = document.getElementById('addClienteBtn');
+
+    let allClientes = [];
+
+    async function cargarClientes() {
+      try {
+        const res = await fetch(API_URL);
+        allClientes = await res.json();
+        renderClientes();
+      } catch (err) {
+        console.error('Error:', err);
+      }
+    }
+
+    function renderClientes() {
+      const filter = filterNombreInput.value.toLowerCase();
+      clientesTableBody.innerHTML = '';
+      const filtered = allClientes.filter(c => c.nombre.toLowerCase().includes(filter));
+      if (filtered.length === 0) {
+        clientesTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">No hay clientes.</td></tr>';
+        return;
+      }
+      filtered.forEach(cliente => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="py-2 px-4 border-b">${cliente.id_cliente}</td>
+          <td class="py-2 px-4 border-b">${cliente.nombre}</td>
+          <td class="py-2 px-4 border-b">${cliente.email || ''}</td>
+          <td class="py-2 px-4 border-b">${cliente.telefono || ''}</td>
+          <td class="py-2 px-4 border-b space-x-2">
+            <button onclick="editarCliente(${cliente.id_cliente})" class="bg-yellow-400 px-2 py-1 rounded">Editar</button>
+            <button onclick="eliminarCliente(${cliente.id_cliente})" class="bg-red-500 text-white px-2 py-1 rounded">Eliminar</button>
+          </td>`;
+        clientesTableBody.appendChild(row);
+      });
+    }
+
+    clienteForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const id = clienteIdInput.value;
+      const cliente = {
+        nombre: nombreInput.value,
+        email: emailInput.value,
+        telefono: telefonoInput.value
+      };
+      if (id) cliente.id_cliente = parseInt(id);
+      try {
+        await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cliente)
+        });
+        await cargarClientes();
+        ocultarModal();
+      } catch (err) {
+        alert('Error al guardar cliente');
+      }
+    }
+
+    function editarCliente(id) {
+      const cliente = allClientes.find(c => c.id_cliente === id);
+      if (!cliente) return;
+      clienteIdInput.value = cliente.id_cliente;
+      nombreInput.value = cliente.nombre;
+      emailInput.value = cliente.email || '';
+      telefonoInput.value = cliente.telefono || '';
+      formTitle.textContent = 'Editar Cliente';
+      mostrarModal();
+    }
+
+    async function eliminarCliente(id) {
+      if (!confirm('¿Eliminar cliente?')) return;
+      try {
+        await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+        await cargarClientes();
+      } catch (err) {
+        alert('Error al eliminar');
+      }
+    }
+
+    function mostrarModal() {
+      formModal.classList.remove('hidden');
+    }
+
+    function ocultarModal() {
+      formModal.classList.add('hidden');
+      clienteForm.reset();
+      clienteIdInput.value = '';
+      formTitle.textContent = 'Nuevo Cliente';
+    }
+
+    cancelEdit.onclick = ocultarModal;
+    formModal.onclick = e => { if (e.target === formModal) ocultarModal(); };
+    addClienteBtn.onclick = mostrarModal;
+    filterNombreInput.oninput = renderClientes;
+
+    // Navbar functionality
+    function loadUserInfoAndProtectRoute() {
+      const username = localStorage.getItem('username');
+      const role = localStorage.getItem('role');
+      if (!username || !role) {
+        window.location.href = '/login';
+        return;
+      }
+      document.getElementById('loggedInUsername').textContent = username;
+      if (role !== 'admin') {
+        const mesas = document.getElementById('linkMesas');
+        const horas = document.getElementById('linkHoras');
+        if (mesas) mesas.style.display = 'none';
+        if (horas) horas.style.display = 'none';
+      }
+    }
+
+    function setupDropdown() {
+      const trigger = document.getElementById('userInfoDropdown');
+      const dropdown = document.getElementById('userDropdownContent');
+
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle('show');
+      });
+
+      window.addEventListener('click', (e) => {
+        if (!trigger.contains(e.target)) {
+          dropdown.classList.remove('show');
+        }
+      });
+    }
+
+    function setupLogout() {
+      const logoutLink = document.getElementById('logoutLink');
+      logoutLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.clear();
+        window.location.href = '/logout';
+      });
+    }
+
+    window.onload = () => {
+      loadUserInfoAndProtectRoute();
+      setupDropdown();
+      setupLogout();
+      cargarClientes();
+    };
+  </script>
+</body>
+</html>
